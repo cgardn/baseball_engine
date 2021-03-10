@@ -12,16 +12,22 @@
 #    will come back and add in defensive stats and pitcher stuff later
 
 class PlayDecoder
-  attr_reader :batter, :hitType
+  attr_reader :batter, :hitType, :raw
   def initialize(row)
     @raw = row
     @batter = row[2]
     @defPlayer = ''
-    @balls = row[3].split('')[0].to_i
-    @strikes = row[3].split('')[1].to_i
     @hitType = ''
     @strikeout = 0
     @walk = 0
+    @balls = 0
+    @strikes = 0
+
+    if row[4]
+      @balls = row[3].split('')[0].to_i
+      @strikes = row[3].split('')[1].to_i
+    end
+
     @hitType = get_hit_type
   end
 
@@ -45,7 +51,7 @@ class PlayDecoder
 
   def to_s
     "Raw play code: #{@raw}
-     Hit type: #{@hitType}"
+     Play data: #{get_play}"
   end
   
   def hit?

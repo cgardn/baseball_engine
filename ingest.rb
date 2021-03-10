@@ -1,12 +1,18 @@
 require './SingleGame'
 require './db/DBInterface'
-#require './db_marshal/MarshalDB'
 require 'csv'
 
-#TODO problem with processing per game, it's adding the sum as each new game,
-#     rather than that game's individual totals for each player. First player
-#     in 1989ATL.EVN winds up with something like 44 at-bats per game later
-#     in the season
+#TODO assorted things that aren't implemented or done quite "correct"
+# - no defensive stats, or pitching stats
+# - no RBIs
+# - not exactly the correct definition of a hit (missing rules/detection
+#     for bunts/sac bunts/sac flys/etc)
+# TODO next
+# - add memory load/save to DBInterface so whole db can be loaded into memory
+#     and dumped when done
+# - actually process all the seasons
+# - write the analysis module, and the test+training modules
+#   > keep it simple: 80% training, 20% test, no fancy pattern recognition
 
 newGame = false
 newFile = true
@@ -41,57 +47,43 @@ fileList.each do |fName|
   f = CSV.read("./raw/#{fName}")
 
   # games are only separated by rows starting with 'id'
-  ids = f.each_with_index.select {|line, idx| line[0] == 'id'}.map(&:last) + [f.length-1]
-
-  (1..(ids.count-1)).each do |idx|
-    puts "Processing game #{idx} of #{ids.count}"
-    newGame.initialize
-    newGame.process(f.slice(ids[idx-1], ids[idx]))
-    db.add_game(newGame.playerList)
-  end
-
-  #puts db.get_stats
-  #gets.chomp
-
-=begin
-  # this is for each row of the file, not each file
-  $thisGame = SingleGame.new
-  CSV.foreach("./raw/#{fName}") do |row|
-  
-    begin
-      if row[0] == 'id' && $thisGame.has_data?
-        # new game starts here
-        # but there's already one game processed, since the file starts with
-        #   an id line
-        puts "Game data"
-        puts $thisGame.to_s
-        gets.chomp
-        db.add_game($thisGame.playerList, $thisGame.id)
-        puts "DB Data"
-        puts db.data
-        gets.chomp
-        $thisGame = SingleGame.new
-      end
-      $thisGame.process_row(row)
-    rescue
-      #puts "ERROR::::"
-      #puts row
+  # FIXME this logic is wrong, and the reason the numbers are goofy
+  #       - some of the slices have multiple games in them
+  #       - the game ID printed as "game X of Y" is not correct 
+  #           (i.e. doesn't always match the id of first game in the slice)
+  t = f.each_with_index.select {|line, idx| line[0] == 'id'}.map(&:last) + [f.length-1]
+  ids = []
+  t.each_index do |idx|
+    if idx != 0
+      ids.push([t[idx-1], t[idx]])
     end
   end
 
-  begin
-    puts db.get_stats
-  rescue
-    puts "db.get_stats error"
+      
+
+  bigTimecheck = Time.now
+  #(1..(ids.count-1)).each do |idx|
+  ids.each_with_index do |idArr, idx|
+    puts "Processing game #{idx} of #{ids.count}"
+    puts "ID: #{f[idArr[0]]}"
+    newGame.reset
+    
+    currentRows = f.slice(idArr[0]..idArr[1]-1)
+
+    #timecheck = Time.now
+    newGame.process(currentRows)
+    #puts "\n\nProcess time: #{Time.now - timecheck}\n"
+    #newGame.process(f.slice(ids[idx-1], ids[idx]))
+    
+    #timecheck = Time.now
+    db.add_game(newGame.playerList)
+    #puts "Timecheck3: #{Time.now - timecheck}"
+
+    newGame.reset
+    if newGame.playerList['treaj001']
+      puts newGame['treaj001'][:atbats]
+    end
+
   end
-=end
-  
+  puts "Total time: #{Time.now - bigTimecheck}"
 end
-
-
-=begin
-File.open('./testDB_text', 'w') {|f|
-  f.write(loadedGames.dump)
-}
-=end
-
