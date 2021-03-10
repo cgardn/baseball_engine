@@ -1,4 +1,4 @@
 raw/*
 zip_data/*
-db/*
+db/db.db
 notes
