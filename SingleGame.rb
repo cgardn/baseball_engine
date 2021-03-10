@@ -1,4 +1,17 @@
+require './PlayDecoder'
+
+class GameRecord < Struct.new(:playerId, :gameId, :atbats, :hits, :strikes, :balls, :singles, :doubles, :triples, :homeruns, :walks, :strikeouts)
+  def initialize(
+      playerId = '', gameId = '', atbats = 0, hits = 0, strikes = 0,
+      balls = 0, singles = 0, doubles = 0, triples = 0, homeruns = 0, 
+      walks = 0, strikeouts = 0
+  )
+    super
+  end
+end
+
 class SingleGame
+  attr_reader :playerList, :id
   # processes a single game, a row at a time
   # input: raw Retrosheet season file: [year][teamcode].EV*, i.e. 1989ATL.EVN
   # output: single file with list of playerIDs, and each offensive play
@@ -10,6 +23,14 @@ class SingleGame
     @play_sub = []
     @er = []
     @proc_playOrSub = Proc.new {|x| x == 'play' || x == 'sub'}
+    @playerHits = {}
+    # hash of player IDs, fields are whatever I'm extracting at the moment
+    # Currently: Hits, Singles, Doubles, Triples, HRs, Strikeouts (at bat)
+    #            Walks
+    @playerList = {}
+
+    # default setup of player stat schema
+    @emptyGameRecord = GameRecord.new
 
     # just collects all offensive plays by player code (i.e. all at-bats)
     # ignores subs for now, which includes pinch-hits and pinch-runs
@@ -48,6 +69,12 @@ class SingleGame
     @visPositions = {}
   end
 
+  def process(gameData)
+    gameData.each do |row|
+      process_row(row)
+    end
+  end
+
   def process_row(data)
     case data[0]
     when 'id'
@@ -56,11 +83,24 @@ class SingleGame
       @info[data[1]] = data[2]
     when 'start'
       @start.push(data[1..])
-    when @proc_playOrSub
+    when 'play'
+      # ignoring sub plays for now, only looking at batter performance
+      # get decoded play, add to overall player tracking hash
+      # at end of game, output everything into individual player hashes in 
+      #   test.rb
+      play = PlayDecoder.new(data[1..])
+      add_play(play)
+
+=begin
+    when 'sub'
+      # actually need to check in when play for play code 'NP,' these precede
+      #   sub changes
+      #   
       # include data[0] because we'll need to know if play or sub later
       @play_sub.push(data)
-      puts data.to_s
-      gets.chomp
+      #puts data.to_s
+      #gets.chomp
+=end
     when 'data'
       # these are actually earned runs
       if data[1] == 'er'
@@ -69,7 +109,20 @@ class SingleGame
     end
   end
 
+  def add_play(play)
+    @playerList[play.batter] ||= GameRecord.new
+    @playerList[play.batter].gameId = @id
+    @playerList[play.batter].playerId = play.batter
+    play.get_play.each do |k,v|
+      #@playerList[play.batter][k] ||= 0
+      @playerList[play.batter][k] += v
+    end
+  end
+
   def position_setup
+    return nil
+    # not implemented/used, this is for tracking defensive stats and also
+    #   things like batting order etc
     # set up starting lineup and defensive positions
     # data format:
     # [playerID, player fullname, home/vis (1/0), batting order, defPosition]
@@ -79,20 +132,9 @@ class SingleGame
     end
   end
 
-  def process_play
-    # extracts whatever I'm targeting out of the raw play codes, associating
-    #   play actions with player codes through the roster
-    # start with just getting offensive stuff (check first char for hit)
-    #   and count bases gained (advanced runners)
-    # then add in defensive stuff (total num of plays sent to player, also
-    #   increment when that person got at out (i.e. it wasn't a hit)
-    return nil
-  end
-
   def sub_player(newPlayer)
-    # [playerID, player fullname, home/vis (1/0), batting order, defPosition]
-    @currentOff[newPlayer[2]][newPlayer[3]] = newPlayer[0]
-    @currentDef[newPlayer[2]][newPlayer[4]] = newPlayer[0]
+    # not implemented, not tracking defensive stats yet
+    return nil
   end
 
   def has_data?
@@ -102,13 +144,18 @@ class SingleGame
   def to_s
     "Processed game info: \n
      ID: #{@id}\n
-     Home: #{@info['hometeam']}
-     Away: #{@info['visteam']}
-     Starters: #{@start.to_s}
-     Plays: #{@play_sub.count}
-     Errors: #{@er.count}\n
-     ---
-     Player Off: #{@currentOff.to_s}
-     Player Def: #{@currentDef.to_s}"
+     Records:
+       #{print_player_stats}"
   end
+
+  def print_player_stats
+    out = ""
+    @playerList.each do |k,v|
+      # each is now a GameRecord
+      out += "\t#{v.to_s}\n"
+      #out += "\t#{k} : #{v}\n"
+    end
+    return out
+  end
+
 end
