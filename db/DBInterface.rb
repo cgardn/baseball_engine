@@ -83,20 +83,37 @@ class DBInterface
     @db.execute("create table if not exists playergames (playerId varchar(30), gameId varchar(30), atbats int, hits int, strikes int, balls int, singles int, doubles int, triples int, homeruns int, walks int, strikeouts int);")
   end
 
-  def get_sum(col, playerId)
-    # sum a column for specific player
-    result = @db.execute("select SUM(#{col}) from playergames where playerId=#{playerId}")
-    return result.next
+  def get_sum(col, playerIdList, gameId='')
+    # sum a column for specific player, optionally up to specific gameId
+    #   (exclusive)
+    qString = (','.concat('?')*playerIdList.length).slice(1..)
+    qry = "select playerId, sum(#{col}) from playergames where playerId in (#{qString}) and substr(gameId, 4) < '#{gameId[3..]}' group by playerId"
+    
+    # batch of playerIds
+    if gameId != ''
+      result = @db.execute(qry, playerIdList)
+    else
+      result = @db.execute("select SUM(#{col}) from playergames where playerId='#{playerId}'")
+    end
+
+    return result
+  end
+
+  def get_avg_batch(col, playerIdList, gameId='')
+    # get average stat value on column up to gameId (exclusive)
+    # returns array of [playerId, avgStat]
+    qString = (','.concat('?')*playerIdList.length).slice(1..)
+    qry = "select playerId, avg(#{col}) from playergames where playerId in (#{qString}) and substr(gameId, 4) < '#{gameId[3..]}' group by playerId"
+    result = @db.execute(qry, playerIdList)
+    return result
   end
 
   def get_player_gamecount(playerId, gameId='')
     # get total number of games played by specific player, optionally up to
-    # specific gameId (inclusive)
+    # specific gameId (exclusive)
     
-    gamecode = gameId ? gameId[3..] : ''
-
-    if gamecode
-      result = @db.execute("select count (distinct gameId) from playergames where playerId='#{playerId}' AND gameId < '#{gamecode}'")
+    if gameId != ''
+      result = @db.execute("select count (distinct gameId) from playergames where playerId='#{playerId}' AND substr(gameId, 4) < '#{gameId[3..]}'")
     else
       result = @db.execute("select count (distinct gameId) from playergames where playerId='#{playerId}'")
     end
