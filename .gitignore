@@ -1,4 +1,6 @@
 raw/*
 zip_data/*
 db/db.db
+db/db.sqlite3
+db/lastFile
 notes

@@ -35,7 +35,7 @@ class PlayDecoder
     # check db schema for correct field names
     # also make sure it's correct on GameRecord def in SingleGame.rb
     out = {
-      'atbats': 1,
+      'atbats': atbat? ? 1 : 0,
       'hits': hit? ? 1 : 0,
       'balls': @balls,
       'strikes': @strikes,
@@ -56,6 +56,10 @@ class PlayDecoder
   
   def hit?
     return ['S','D','T','H','HR'].include? @hitType
+  end
+
+  def atbat?
+    return @hitType != 'W'
   end
 
   def get_hit_type

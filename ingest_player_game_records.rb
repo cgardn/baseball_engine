@@ -13,16 +13,38 @@ require 'csv'
 # - actually process all the seasons
 # - write the analysis module, and the test+training modules
 #   > keep it simple: 80% training, 20% test, no fancy pattern recognition
+# - add conditional updating, check if game record exists for given player
+#   and only update if it doesn't exist
 
 newGame = false
 newFile = true
 
 db = DBInterface.new
 
+# switching to a generated list of files, much easier
+fileList = File.readlines('./db/fileList').map(&:chomp)
+last = (File.exists? "./db/lastFile") ? File.read('./db/lastFile') : ''
+
+if last != ''
+  fileList = fileList.slice(fileList.find_index(last)+1..)
+end
+
+puts last
+gets.chomp
+puts fileList[0..10]
+gets.chomp
+
+=begin
 # set min/max season years. set equal for single season 
 minYear = 1989
-maxYear = 1989
-testFile = "1989ATL.EVN"
+maxYear = 1992
+lastFile = ''
+begin
+  lastFile = File.open('./db/lastFileFinished') {|f| f.read.to_i}
+  puts "Last file completed: #{lastFile}"
+rescue
+  puts "No lastFileFinished found, starting in #{minYear}"
+end
 # filter out teamfiles
 fileList = Dir.children('./raw/').filter {|fn| fn.split('.').length > 1}
 # filter out roster files
@@ -33,24 +55,28 @@ fileList.filter! {|fn| fn.match(/([0-9]{4})/).to_s.to_i >= minYear}
 fileList.filter! {|fn| fn.match(/([0-9]{4})/).to_s.to_i <= maxYear}
 # sort last on smallest list
 fileList.sort!
+=end
 
-testMode = true
+testMode = false
+reset = false
 if testMode
   fileList = ["1989ATL.EVN"]
+end
+if reset
+  puts "RESET MODE IS ON!!! Press enter to reset DB, or bail out now!!!"
+  gets.chomp
   db.reset_db
 end
 
 newGame = SingleGame.new
+mainTimecheck = Time.now
 fileList.each do |fName|
 
   puts "Processing: #{fName}"
+  # bit of a hang here to load the file, might be unavoidable
   f = CSV.read("./raw/#{fName}")
 
-  # games are only separated by rows starting with 'id'
-  # FIXME this logic is wrong, and the reason the numbers are goofy
-  #       - some of the slices have multiple games in them
-  #       - the game ID printed as "game X of Y" is not correct 
-  #           (i.e. doesn't always match the id of first game in the slice)
+  # games are separated by rows starting with 'id'
   t = f.each_with_index.select {|line, idx| line[0] == 'id'}.map(&:last) + [f.length-1]
   ids = []
   t.each_index do |idx|
@@ -59,31 +85,25 @@ fileList.each do |fName|
     end
   end
 
-      
-
-  bigTimecheck = Time.now
-  #(1..(ids.count-1)).each do |idx|
   ids.each_with_index do |idArr, idx|
-    puts "Processing game #{idx} of #{ids.count}"
+    puts "\nProcessing game #{idx} of #{ids.count}"
     puts "ID: #{f[idArr[0]]}"
-    newGame.reset
     
     currentRows = f.slice(idArr[0]..idArr[1]-1)
 
     #timecheck = Time.now
     newGame.process(currentRows)
-    #puts "\n\nProcess time: #{Time.now - timecheck}\n"
-    #newGame.process(f.slice(ids[idx-1], ids[idx]))
+    #puts "Process time: #{Time.now - timecheck}\n"
     
     #timecheck = Time.now
     db.add_game(newGame.playerList)
-    #puts "Timecheck3: #{Time.now - timecheck}"
+    #puts "Add_game: #{Time.now - timecheck}\n"
 
     newGame.reset
-    if newGame.playerList['treaj001']
-      puts newGame['treaj001'][:atbats]
-    end
 
   end
-  puts "Total time: #{Time.now - bigTimecheck}"
+  # if no problems, write to disk and last file completed
+  db.save_to_disk
+  File.write('./db/lastFile', fName) 
 end
+puts "Completed in #{Time.now - mainTimecheck}"
