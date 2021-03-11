@@ -8,6 +8,11 @@ class DBInterface
     create_table
   end
 
+  def setup
+    load_from_disk
+    create_table
+  end
+
   def load_from_disk
     diskDB = SQLite3::Database.open "./db/db.sqlite3"
     b = SQLite3::Backup.new(@db, 'main', diskDB, 'main')
@@ -79,9 +84,37 @@ class DBInterface
   end
 
   def get_sum(col, playerId)
-    # sum a column
+    # sum a column for specific player
     result = @db.execute("select SUM(#{col}) from playergames where playerId=#{playerId}")
     return result.next
+  end
+
+  def get_player_gamecount(playerId, gameId='')
+    # get total number of games played by specific player, optionally up to
+    # specific gameId (inclusive)
+    
+    gamecode = gameId ? gameId[3..] : ''
+
+    if gamecode
+      result = @db.execute("select count (distinct gameId) from playergames where playerId='#{playerId}' AND gameId < '#{gamecode}'")
+    else
+      result = @db.execute("select count (distinct gameId) from playergames where playerId='#{playerId}'")
+    end
+    return result[0]
+  end
+
+  def get_records_before_game(playerId, gameId, col)
+    # get all game records for given player up to gameId (exclusive)
+    cmd = "select #{col} from playergames where playerId='treaj001' and substr(gameId, 4) < '#{gameId[3..]}'"
+    puts cmd
+    gets.chomp
+    result = @db.execute("select #{col} from playergames where playerId='#{playerId}' and substr(gameId, 4) < '#{gameId[3..]}'")
+    return result
+  end
+
+  def get_avg_stat_at_point(col, playerId)
+    # get the average value of a particular column up to specific gameId for
+    # a given player
   end
 
 end
