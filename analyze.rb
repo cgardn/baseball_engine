@@ -10,6 +10,7 @@ class Analyze
   RST.load_data
   GML = Gamelogs.new
   GML.load_data
+  @@lastGameId = ''
 
   # load each year's roster into memory
   # load full gamelog into memory
@@ -37,6 +38,8 @@ class Analyze
     # colList: batting avg, avg(singles), avg(doubles), avg(triples), avg(homeruns), avg(strikeouts)"
     # definitely start a ways in, make sure there's some data
     GML.get_gameId_list[startNum..analyzeLength].each_with_index do |gameId, idx|
+      @@lastGameId = gameId
+      begin
       puts "Analyzing #{gameId}, #{analyzeLength-startNum-idx} remaining"
       teams = GML.get_gamelog(gameId)[:teams]
       year = gameId[3..6]
@@ -66,17 +69,20 @@ class Analyze
       loseAccum = loseTeamData.transpose.map {|x| x.reduce(:+)}.map {|y| y/winTeamData[0].length}
       puts "map/reduce time: #{Time.now - t}"
 
-      puts (Matrix[winAccum] - Matrix[loseAccum]).to_a[0].to_s
-      gets.chomp
+      DB.add_measurement((Matrix[winAccum] - Matrix[loseAccum]).to_a[0])
 
-      DB.write(
+      rescue
+
       DB.save_to_disk
-      File.write('./lastGameAnalyzed', gameId)
+      File.write('./lastGameAnalyzed', @@lastGameId)
+      end
 
     end
+    DB.save_to_disk
+    File.write('./lastGameAnalyzed', @@lastGameId)
 
   end
 
 end
 
-a = Analyze.analyze
+a = Analyze.analyze(500, 10500)

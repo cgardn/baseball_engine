@@ -39,7 +39,6 @@ class DBInterface
 
   def add_game(gameData)
     # insert one game's worth of records (many players)
-    # check for existing records first
 
     gameData.each do |k,v|
       @db.execute("
@@ -62,22 +61,6 @@ class DBInterface
     # calculated difference between winning and losing team for these stats
     #   the average of all the players on the roster is taken
     @db.execute("create table if not exists measurements (battingaverage real, singles real, doubles real, triples real, homeruns real, strikeouts real);")
-  end
-
-  def get_sum(col, playerIdList, gameId='')
-    # sum a column for specific player, optionally up to specific gameId
-    #   (exclusive)
-    qString = (','.concat('?')*playerIdList.length).slice(1..)
-    qry = "select playerId, sum(#{col}) from playergames where playerId in (#{qString}) and substr(gameId, 4) < '#{gameId[3..]}' group by playerId"
-    
-    # batch of playerIds
-    if gameId != ''
-      result = @db.execute(qry, playerIdList)
-    else
-      result = @db.execute("select SUM(#{col}) from playergames where playerId='#{playerId}'")
-    end
-
-    return result
   end
 
   def get_avg_batch(playerIdList, gameId='')
