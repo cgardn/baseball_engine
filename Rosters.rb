@@ -15,6 +15,10 @@ class Rosters
     puts "done."
   end
 
+  def get_single_roster(team, year)
+    return @data[team][year]
+  end
+
   def get_rosters(teams, year)
     return {
       teams[0] => @data[teams[0]][year],

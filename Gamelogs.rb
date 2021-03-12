@@ -1,10 +1,21 @@
 require 'csv'
 class Gamelogs
+  attr_accessor :data
   def initialize
     @data = {}
   end
 
+  def load_from_marshal
+    @data = Marshal.load(File.read('./gamelogdump'))
+  end
+
   def load_data
+    if File.exists? './gamelogdump'
+      puts "loading gamelogs from dump"
+      load_from_marshal
+      puts "done."
+      return
+    end
     # iterate over all gamelog files and extract
     # fields: 0-date, 1-gamenum, 3-vis team code, 6-home team code
     #         9-vis team score, 10-vis team score (scores unquoted)
@@ -41,4 +52,5 @@ class Gamelogs
   def get_gameId_list
     return @data.keys
   end
+
 end

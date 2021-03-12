@@ -1,8 +1,15 @@
 require './db/DBInterface'
+require './Rosters'
+require './Gamelogs'
+require 'matrix'
 
 class Analyze
 
   DB = DBInterface.new
+  RST = Rosters.new
+  RST.load_data
+  GML = Gamelogs.new
+  GML.load_data
 
   # load each year's roster into memory
   # load full gamelog into memory
@@ -26,18 +33,50 @@ class Analyze
   def batting_avg_before_game(playerId, gameId)
   end
 
-  def self.avg_stats_before_game(playerIdList, gameId)
-    statList = ["atbats", "hits", "singles", "doubles", "triples", "homeruns", "strikes", "balls", "strikeouts"]
-    out = {}
-    statList.each do |stat|
-      count = DB.get_player_gamecount(playerIdList, gameId)
-      statTotal = DB.get_sum(stat, playerIdList, gameId)
-      out[stat] = ((statTotal[0][0]).to_f)/count[0]
+  def self.analyze(startNum, analyzeLength)
+    # colList: batting avg, avg(singles), avg(doubles), avg(triples), avg(homeruns), avg(strikeouts)"
+    # definitely start a ways in, make sure there's some data
+    GML.get_gameId_list[startNum..analyzeLength].each_with_index do |gameId, idx|
+      puts "Analyzing #{gameId}, #{analyzeLength-startNum-idx} remaining"
+      teams = GML.get_gamelog(gameId)[:teams]
+      year = gameId[3..6]
+
+      # team and roster setup
+      #t = Time.now
+      winTeam = GML.get_gamelog(gameId)[:winner]
+      winRoster = RST.get_single_roster(winTeam, year)
+      loseTeam = GML.get_gamelog(gameId)[:loser]
+      loseRoster = RST.get_single_roster(loseTeam, year)
+      #puts "team+roster setup: #{Time.now - t}"
+
+      #t = Time.now
+      winTeamData = DB.get_avg_batch(winRoster, gameId)
+      loseTeamData = DB.get_avg_batch(loseRoster, gameId)
+      #puts "SQL calls time: #{Time.now - t}"
+
+      # didn't set null=false/default=0 on sql db
+      t = Time.now
+      winTeamData.map! {|row| row.map {|x| if x == nil then 0 else x end}}
+      loseTeamData.map! {|row| row.map {|x| if x == nil then 0 else x end}}
+      puts "nil fix time: #{Time.now - t}"
+
+      # avg all values for team average at start of game
+      t = Time.now
+      winAccum = winTeamData.transpose.map {|x| x.reduce(:+)}.map {|y| y/winTeamData[0].length}
+      loseAccum = loseTeamData.transpose.map {|x| x.reduce(:+)}.map {|y| y/winTeamData[0].length}
+      puts "map/reduce time: #{Time.now - t}"
+
+      puts (Matrix[winAccum] - Matrix[loseAccum]).to_a[0].to_s
+      gets.chomp
+
+      DB.write(
+      DB.save_to_disk
+      File.write('./lastGameAnalyzed', gameId)
+
     end
 
-    return out
   end
 
-  def strikes_avg_before_game
-  end
 end
+
+a = Analyze.analyze
