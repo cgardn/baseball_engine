@@ -24,6 +24,7 @@ class Analyze
   end
 
   def analyze_measurements
+    # TODO replace with proper LDA
     # cols: battingaverage, singles, doubles, triples, homeruns, strikeouts
     # method:
     # - get mean and stddev on each col

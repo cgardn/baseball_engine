@@ -37,8 +37,15 @@ class DBInterface
     puts "done."
   end
 
+  def get_column_names(tablename)
+    # returns array of string names of table columns, in the order they appear
+    #   in the DB
+    return @db.execute("PRAGMA table_info(#{tablename})").transpose[1]
+  end
+
   def add_game(gameData)
     # insert one game's worth of records (many players)
+    # for reference: value insertion limited to 999 values
 
     gameData.each do |k,v|
       @db.execute("
@@ -47,8 +54,9 @@ class DBInterface
     end
   end
 
-  def add_measurement(row)
-    @db.execute("insert into measurements (battingaverage, singles, doubles, triples, homeruns, strikeouts) VALUES (?,?,?,?,?,?)", [row[0], row[1], row[2], row[3], row[4], row[5]])
+  def add_measurement(row, tableName)
+    # add a single measurement row into specified database
+    @db.execute("insert into #{tableName} (gameId, teamCode, isWinner, battingaverage, strikes, singles, doubles, triples, homeruns, strikeouts) VALUES (?,?,?,?,?,?,?,?,?,?)", row)
   end
 
   def reset_db
@@ -58,9 +66,25 @@ class DBInterface
 
   def create_table
     @db.execute("create table if not exists playergames (playerId varchar(30), gameId varchar(30), atbats int, hits int, strikes int, balls int, singles int, doubles int, triples int, homeruns int, walks int, strikeouts int);")
-    # calculated difference between winning and losing team for these stats
-    #   the average of all the players on the roster is taken
-    @db.execute("create table if not exists measurements (battingaverage real, singles real, doubles real, triples real, homeruns real, strikeouts real);")
+  end
+
+  def create_new_table(tableName, columnInfo)
+    # input: 
+    #   String tableName
+    #   Hash columnInfo
+    #     :name - required, string name of column
+    #     :type - required, string SQL type of column (varchar (30), int, etc)
+    #     :notNull - optional, bool, true if null not allowed
+    #     :default - optional, variable type, default value for new entries
+    #                type depends on type of column
+    colString = columnInfo.map do |x| 
+      "#{x[:name]} #{x[:type]}#{x[:notNull] ? ' NOT NULL' : ''}#{x[:default] ? ' DEFAULT '+x[:default] : ''}"
+    end
+    colString = colString.join(', ')
+    puts colString
+    STDIN.gets
+
+    @db.execute("create table if not exists #{tableName} (#{colString});")
   end
 
   def get_avg_batch(playerIdList, gameId='')
