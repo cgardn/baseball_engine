@@ -1,6 +1,6 @@
 require './db/DBInterface'
-require './Rosters'
-require './Gamelogs'
+require './lib/Rosters'
+require './lib/Gamelogs'
 require 'matrix'
 
 class Analyze
@@ -16,7 +16,6 @@ class Analyze
     @lastGameId = ''
     @normalizedData = []
     @analyzeResult = []
-    @testIndexes = []
   end
 
   # load each year's roster into memory
@@ -78,12 +77,12 @@ class Analyze
       rescue
 
       @db.save_to_disk
-      File.write('./lastGameAnalyzed', @lastGameId)
+      File.write('./lib/lastGameAnalyzed', @lastGameId)
       end
 
     end
     @db.save_to_disk
-    File.write('./lastGameAnalyzed', @lastGameId)
+    File.write('./lib/lastGameAnalyzed', @lastGameId)
 
   end
 
@@ -115,16 +114,6 @@ class Analyze
     # BattingAverage, s,d,t,hr,k
     @measureData = @db.db.execute("select * from measurements")
     
-    # generate test indexes to skip
-    @testIndexes = Array.new(@measureData.length*0.2)
-    @testIndexes.each_with_index do |t,i|
-      num = rand(@measureData.length-1)
-      while @testIndexes.include? num
-        num = rand(@measureData.length-1)
-      end
-      @testIndexes[i] = num
-    end
-
     # flip signs on K's, since fewer K's is better but we're doing sums
     @measureData.map! {|row| row[0..4].push(-row[5])}
     # get combinations of stat indices
@@ -146,10 +135,6 @@ class Analyze
       # all scores for this combination of stats
       #@normalizedData.each_with_index do |row, idy|
       @measureData.each_with_index do |row, idy|
-        if @testIndexes.include? idy
-          # skip test games
-          next
-        end
         # sum the features in this combo
         scores.push row.filter.with_index{|x,i| c.include? i}.reduce(:+)
       end
@@ -167,6 +152,10 @@ class Analyze
     #   positive (higher than losing team)
     result.sort! {|a,b| b[1] <=> a[1]}
     @analyzeResult = result[0]
+    puts result
+    STDIN.gets
+    res = {'features': result[0][0], 'mean': result[0][1], 'stddev': result[0][2]}
+    File.write('./analyzeResult', Marshal.dump(res))
     #result.each {|r| puts "#{r.to_s}\n"}
 
     # from this, we determined that singles, triples, and strikeouts have the
@@ -183,47 +172,6 @@ class Analyze
     # - normalize team avg singles, triples, and -(strikeouts) vs losing team
     # - 
 
-  end
-
-  def normalize_to_range(val, oldMin, oldMax, newMin, newMax)
-    # normalize to 0-1
-    range = oldMax - oldMin
-    val = (val-oldMin)/range
-    # scale to newMin-newMax
-    range = newMax - newMin
-    val = (val * range) + newMin
-    return val
-  end
-
-  def test_model
-    # - z-score = (N-mean)/stddev
-    #   values of 0 are at the mean, add 0.5 to z. This is the % of winning 
-    #   teams with at least this score in the training set
-
-    # result from analyze is in the form [stat combo, mean, stddev]
-    puts "in test_model"
-
-    numRight = 0
-    #@normalizedData.each_with_index do |row, idx|
-    @measureData.each_with_index do |row, idx|
-      if !@testIndexes.include? idx
-        # skip training data
-        next
-      end
-       
-      # even though these scores are from winners, we can still test by 
-      #   just looking at the z-score and deciding if it is inside our chosen
-      #   threshold (say 0.3). We then tabulate how many games fall inside
-      #   the threshold, and that is how often we'd be correct - because all
-      #   of the games here are winners
-     
-      threshold = 0.3
-      score = row.filter.with_index {|x, i| @analyzeResult[0].include? i}.reduce(:+)
-      if (score-@analyzeResult[1])/@analyzeResult[2] >= threshold
-        numRight += 1
-      end
-    end
-    puts "#{((numRight.to_f*100)/@testIndexes.length).truncate(2)}% of winners meet threshold"
   end
 
   def full_test(startNum, testLength)

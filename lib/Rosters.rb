@@ -6,7 +6,7 @@ class Rosters
 
   def load_data
     # set up team names and years
-    fileList = File.readlines('./fileLists/rosterFileList').map(&:chomp)
+    fileList = File.readlines('./staticData/rosterFileList').map(&:chomp)
     puts "fetching rosters..."
     fileList.each do |file|
       @data[file.slice(0,3)] ||= {}

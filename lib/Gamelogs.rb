@@ -6,21 +6,21 @@ class Gamelogs
   end
 
   def load_from_marshal
-    @data = Marshal.load(File.read('./gamelogdump'))
+    puts "loading gamelogs from dump"
+    @data = Marshal.load(File.read('./staticData/gamelogdump'))
+    puts "done."
   end
 
   def load_data
-    if File.exists? './gamelogdump'
-      puts "loading gamelogs from dump"
+    if File.exists? './staticData/gamelogdump'
       load_from_marshal
-      puts "done."
       return
     end
     # iterate over all gamelog files and extract
     # fields: 0-date, 1-gamenum, 3-vis team code, 6-home team code
     #         9-vis team score, 10-vis team score (scores unquoted)
     #         15-forfeit ('V', 'H', 'T' for vis, home, no-decision)
-    fileList = File.readlines('./fileLists/gamelogFileList').map(&:chomp)
+    fileList = File.readlines('./staticData/gamelogFileList').map(&:chomp)
     puts "fetching gamelogs..."
     fileList.each do |file|
       puts "Processing #{file}..."

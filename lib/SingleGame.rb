@@ -1,4 +1,4 @@
-require './PlayDecoder'
+require './lib/PlayDecoder'
 
 class GameRecord < Struct.new(:playerId, :gameId, :atbats, :hits, :strikes, :balls, :singles, :doubles, :triples, :homeruns, :walks, :strikeouts)
   def initialize(

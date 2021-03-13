@@ -8,13 +8,8 @@ require 'csv'
 # - not exactly the correct definition of a hit (missing rules/detection
 #     for bunts/sac bunts/sac flys/etc)
 # TODO next
-# - add memory load/save to DBInterface so whole db can be loaded into memory
-#     and dumped when done
-# - actually process all the seasons
-# - write the analysis module, and the test+training modules
-#   > keep it simple: 80% training, 20% test, no fancy pattern recognition
-# - add conditional updating, check if game record exists for given player
-#   and only update if it doesn't exist
+# - batch CSV reads/something else, to speed up the process
+# - replace my own parsing with chadwick tool
 
 newGame = false
 newFile = true
@@ -33,29 +28,6 @@ puts last
 gets.chomp
 puts fileList[0..10]
 gets.chomp
-
-=begin
-# set min/max season years. set equal for single season 
-minYear = 1989
-maxYear = 1992
-lastFile = ''
-begin
-  lastFile = File.open('./db/lastFileFinished') {|f| f.read.to_i}
-  puts "Last file completed: #{lastFile}"
-rescue
-  puts "No lastFileFinished found, starting in #{minYear}"
-end
-# filter out teamfiles
-fileList = Dir.children('./raw/').filter {|fn| fn.split('.').length > 1}
-# filter out roster files
-fileList.filter! {|fn| fn.split('.')[1] != 'ROS'}
-# filter above minimum year
-fileList.filter! {|fn| fn.match(/([0-9]{4})/).to_s.to_i >= minYear}
-# filter below max year
-fileList.filter! {|fn| fn.match(/([0-9]{4})/).to_s.to_i <= maxYear}
-# sort last on smallest list
-fileList.sort!
-=end
 
 testMode = false
 reset = false
