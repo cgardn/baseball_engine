@@ -48,15 +48,27 @@ class DBInterface
     # for reference: value insertion limited to 999 values
 
     gameData.each do |k,v|
-      @db.execute("
-        insert into playergames (playerId, gameId, atbats, hits, strikes, balls, singles, doubles, triples, homeruns, walks, strikeouts)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", [k, v[:gameId], v[:atbats], v[:hits], v[:strikes], v[:balls], v[:singles], v[:doubles], v[:triples], v[:homeruns], v[:walks], v[:strikeouts]])
+      @db.execute(
+        "insert into playergames "\
+          "(playerId, gameId, atbats, hits, strikes, balls, "\
+          "singles, doubles, triples, homeruns, walks, strikeouts) "\
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", 
+          [k, v[:gameId], v[:atbats], v[:hits], v[:strikes], 
+          v[:balls], v[:singles], v[:doubles], v[:triples], 
+          v[:homeruns], v[:walks], v[:strikeouts]]
+      )
     end
   end
 
   def add_measurement(row, tableName)
     # add a single measurement row into specified database
-    @db.execute("insert into #{tableName} (gameId, teamCode, isWinner, battingaverage, singles, doubles, triples, homeruns, strikeouts) VALUES (?,?,?,?,?,?,?,?,?)", row)
+    @db.execute(
+      "insert into #{tableName} "\
+        "(gameId, teamCode, isWinner, battingaverage, singles, doubles, "\
+        "triples, homeruns, strikeouts) "\
+      "VALUES (?,?,?,?,?,?,?,?,?)", 
+      row
+    )
   end
 
   def drop_table(tablename)
@@ -94,39 +106,19 @@ class DBInterface
   end
 
   def get_avg_batch(playerIdList, gameId='')
-    # get average stat value on columns specified below up to 
+    # get players' career cumulative stats on columns specified below up to 
     #   gameId (exclusive)
-    # returns array of [ [playerId, avgStat1, avgStat2,...] [playerId2,...] ]
+    # returns array of [ [player1stat1, ...] [player2stat1,...] ]
     
-    # FIXME this isn't the optimal place for this - I'd prefer something more
-    # general/flexible, but because of a lack of foresight I haven't built
-    # batting average in as a standalone column, only atbats and hits.
-    # - because all the other columns are scalars getting averaged and just
-    # the one is an arithmetic operation, I'm hardcoding the columns here for
-    # now. I'll come back and make this more general/move column input up to
-    # the analysis module at a later date
-    #
-    # FIXME also this query is slow - 1.7s on avg, prioritize optimizing this
-    colList= "sum(cast(hits as real))       / sBats, "\
-             "sum(cast(singles as real))    / sBats, "\
-             "sum(cast(doubles as real))    / sBats, "\
-             "sum(cast(triples as real))    / sBats, "\
-             "sum(cast(homeruns as real))   / sBats, "\
-             "sum(cast(strikeouts as real)) / sBats"
-    colList2 = "sum(atbats), sum(hits), sum(singles), sum(doubles), sum(triples), sum(homeruns), sum(strikeouts)"
-
+    # FIXME this query is slow - 1.7s on avg, prioritize optimizing this
+    colList = "sum(atbats), sum(hits), sum(singles), sum(doubles), "\
+              "sum(triples), sum(homeruns), sum(strikeouts)"
     qString = (','.concat('?')*playerIdList.length).slice(1..)
+    qry = "select #{colList} from playergames where "\
+          "substr(gameId, 4) < '#{gameId[3..]}' and "\
+          "playerId in (#{qString}) group by playerID"
 
-    qry2 = "select #{colList2} from playergames where substr(gameId, 4) < '#{gameId[3..]}' and playerId in (#{qString}) group by playerID"
-    qry = "select #{colList2} from "\
-            "(select playerId, gameId, hits, singles, "\
-            "doubles, triples, homeruns, strikeouts, sum(atbats) as sBats "\
-            "from playergames where substr(gameId,4) < '#{gameId[3..]}' "\
-            "group by playerId) "\
-          "where sBats>0 and playerId in (#{qString}) group by playerId"
-          #"and substr(gameId, 4) < '#{gameId[3..]}' group by playerId"
-
-    result = @db.execute(qry2, playerIdList)
+    result = @db.execute(qry, playerIdList)
     return result
   end
 

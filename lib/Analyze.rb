@@ -53,7 +53,7 @@ class Analyze
     @measureData = @db.db.execute("select * from measurements")
     
     # flip signs on K's, since fewer K's is better but we're doing sums
-    @measureData.map! {|row| row[0..4].push(-row[5])}
+    @measureData.map! {|row| row[3..7].push(-row[8])}
     # get combinations of stat indices
     combos = []
     6.times do |i|
@@ -71,12 +71,12 @@ class Analyze
       puts "checking combination #{idx+1} of #{combos.length}"
       scores = []
       # all scores for this combination of stats
-      #@normalizedData.each_with_index do |row, idy|
       @measureData.each_with_index do |row, idy|
         # sum the features in this combo
         scores.push row.filter.with_index{|x,i| c.include? i}.reduce(:+)
       end
       # mean
+
       mean = scores.reduce(:+)/scores.length
       # stddev, with Bessell's correction for sample variance
       variance = scores.map{|x| (x-mean)**2}.reduce(:+)/(scores.length-1)
@@ -86,29 +86,10 @@ class Analyze
     end
 
     # this sorts the highest mean to the bottom
-    # essentially, the higher the mean the more winning teams have these stats
-    #   positive (higher than losing team)
     result.sort! {|a,b| b[1] <=> a[1]}
     @analyzeResult = result[0]
-    puts result
-    STDIN.gets
     res = {'features': result[0][0], 'mean': result[0][1], 'stddev': result[0][2]}
-    File.write('./analyzeResult', Marshal.dump(res))
-    #result.each {|r| puts "#{r.to_s}\n"}
-
-    # from this, we determined that singles, triples, and strikeouts have the
-    #   highest impact with the current dataset
-    # a score is derived from normalizing team-wide avgs of singles, triples, 
-    #   and -(strikeouts) per game across the team to the range (-1..1).
-    #   Sum those three together and subtract one team's score from the other,
-    #   if that score is at least 0.067 higher, that team has a 50% chance of
-    #   winning.
-    # highest is .067, meaning 50% of winning teams have an average difference
-    #   of the normalized sum of singles, triples, and -(strikeouts) 
-    #
-    # the model derived is this:
-    # - normalize team avg singles, triples, and -(strikeouts) vs losing team
-    # - 
+    File.write('./lib/analyzeResult', Marshal.dump(res))
 
   end
 

@@ -1,14 +1,20 @@
-require './ingest_player_game_records'
+require './lib/Ingest'
 require './lib/Measure'
 require './lib/Analyze'
-require './lib/test'
+require './lib/Test'
 
 usageStr = "usage:
   ingest - process raw retrosheet files into DB
   measure [START, LENGTH] - get measurements on LENGTH records, from START
   analyze - generate model with the measurements distribution
   test [START, LENGTH] - test with generated model. recommend using different
-                         range from the one used for generate"
+                         range from the one used for 'measure'\n\n
+  ---
+  Each command should be run in order from top to bottom
+  *NOTE* 'test' uses old (and incorrect) methodology, so it's just going to
+         give you a lot of garbage at the moment. Working on it! :)
+
+  You'll also need event files from retrosheet.org. Check README for info."
 
 if !ARGV[0]
   puts usageStr

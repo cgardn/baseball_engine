@@ -8,7 +8,8 @@ require 'matrix'
 class Test
 
   def initialize
-    model = Marshal.load(File.read('./lib/analyzeResult'))
+    check_for_model
+    @model = Marshal.load(File.read('./lib/analyzeResult'))
     @features = model[:features]
     @mean = model[:mean]
     @stddev = model[:stddev]
@@ -20,8 +21,10 @@ class Test
   end
 
   def full_test(startNum, testLength)
+    # TODO replace this with LDA
+    # - everything in full_test is based on old (and incorrect) ideas, so it
+    #   doesn't work right
     puts "Features: #{@features.to_s}\nMean: #{@mean}\nSTDDEV: #{@stddev}"
-    STDIN.gets.chomp
 
     numGuesses = 0
     numRight = 0
@@ -36,6 +39,18 @@ class Test
       #   coming back to neaten and refactor it all I swear!! :)
       teamData[0].map!{|row| row.map{|x| if x == nil then 0 else x end}}
       teamData[1].map!{|row| row.map{|x| if x == nil then 0 else x end}}
+
+      # remove low atbats
+      teamData[0]= teamData[0].filter {|row| row[0] > 50}
+      teamData[1]= teamData[1].filter {|row| row[0] > 50}
+
+      # convert hits/atbats to batting average
+      teamData[0] = teamData[0].map {|row| 
+        row[1..].map.with_index {|x, i| x.to_f/row[0]}
+      }
+      teamData[1] = teamData[1].map {|row| 
+        row[1..].map.with_index {|x, i| x.to_f/row[0]}
+      }
 
       # get diff in raw stats between two teams
       team0diff = (Matrix[score_team(teamData[0])] - Matrix[score_team(teamData[1])]).to_a[0]
@@ -83,6 +98,13 @@ class Test
     # this function averages each stat across the roster to estimate the 
     #   team's performance/strength
     return dataBatch.transpose.map{|x| x.reduce(:+)}.map{|y| y/dataBatch[0].length}
+  end
+
+  def check_for_model
+    if !File.exist? './lib/analyzeResult'
+      puts "ERROR: no generated model found. Please run 'analyze' to make one."
+      exit
+    end
   end
 
 end
