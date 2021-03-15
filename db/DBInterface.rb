@@ -56,7 +56,15 @@ class DBInterface
 
   def add_measurement(row, tableName)
     # add a single measurement row into specified database
-    @db.execute("insert into #{tableName} (gameId, teamCode, isWinner, battingaverage, strikes, singles, doubles, triples, homeruns, strikeouts) VALUES (?,?,?,?,?,?,?,?,?,?)", row)
+    @db.execute("insert into #{tableName} (gameId, teamCode, isWinner, battingaverage, singles, doubles, triples, homeruns, strikeouts) VALUES (?,?,?,?,?,?,?,?,?)", row)
+  end
+
+  def drop_table(tablename)
+    puts "Drop table: #{tablename} - Bail out if this isn't right!"
+    STDIN.gets
+    puts "Ok, I'm doing it then..."
+    @db.execute("drop table if exists #{tablename}")
+    puts "done."
   end
 
   def reset_db
@@ -81,8 +89,6 @@ class DBInterface
       "#{x[:name]} #{x[:type]}#{x[:notNull] ? ' NOT NULL' : ''}#{x[:default] ? ' DEFAULT '+x[:default] : ''}"
     end
     colString = colString.join(', ')
-    puts colString
-    STDIN.gets
 
     @db.execute("create table if not exists #{tableName} (#{colString});")
   end
@@ -101,11 +107,26 @@ class DBInterface
     # the analysis module at a later date
     #
     # FIXME also this query is slow - 1.7s on avg, prioritize optimizing this
-    colList= "cast(hits as real) / atbats, avg(singles), avg(doubles), avg(triples), avg(homeruns), avg(strikeouts)"
+    colList= "sum(cast(hits as real))       / sBats, "\
+             "sum(cast(singles as real))    / sBats, "\
+             "sum(cast(doubles as real))    / sBats, "\
+             "sum(cast(triples as real))    / sBats, "\
+             "sum(cast(homeruns as real))   / sBats, "\
+             "sum(cast(strikeouts as real)) / sBats"
+    colList2 = "sum(atbats), sum(hits), sum(singles), sum(doubles), sum(triples), sum(homeruns), sum(strikeouts)"
+
     qString = (','.concat('?')*playerIdList.length).slice(1..)
 
-    qry = "select #{colList} from playergames where playerId in (#{qString}) and substr(gameId, 4) < '#{gameId[3..]}' group by playerId"
-    result = @db.execute(qry, playerIdList)
+    qry2 = "select #{colList2} from playergames where substr(gameId, 4) < '#{gameId[3..]}' and playerId in (#{qString}) group by playerID"
+    qry = "select #{colList2} from "\
+            "(select playerId, gameId, hits, singles, "\
+            "doubles, triples, homeruns, strikeouts, sum(atbats) as sBats "\
+            "from playergames where substr(gameId,4) < '#{gameId[3..]}' "\
+            "group by playerId) "\
+          "where sBats>0 and playerId in (#{qString}) group by playerId"
+          #"and substr(gameId, 4) < '#{gameId[3..]}' group by playerId"
+
+    result = @db.execute(qry2, playerIdList)
     return result
   end
 

@@ -1,17 +1,27 @@
+require './ingest_player_game_records'
 require './lib/Measure'
 require './lib/Analyze'
 require './lib/test'
 
 usageStr = "usage:
-  generate [START, LENGTH] - get measurements on LENGTH records, from START
+  ingest - process raw retrosheet files into DB
+  measure [START, LENGTH] - get measurements on LENGTH records, from START
   analyze - generate model with the measurements distribution
   test [START, LENGTH] - test with generated model. recommend using different
                          range from the one used for generate"
 
+if !ARGV[0]
+  puts usageStr
+  exit
+end
+
 case ARGV[0]
-when 'process'
+
+when 'ingest'
   # parse raw retrosheet files into db
-  puts 'not implemented'
+  ing = Ingest.new
+  ing.ingest_raw_data
+
 when 'measure'
   # generate actual numbers used as signals
   if ARGV.length < 3 

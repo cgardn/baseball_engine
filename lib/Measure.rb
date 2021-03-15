@@ -13,6 +13,10 @@
 #       check 
 #
 
+require './lib/Rosters'
+require './lib/Gamelogs'
+require './db/DBInterface'
+
 class Measure
 
   def initialize
@@ -22,9 +26,25 @@ class Measure
     @gml = Gamelogs.new
     @gml.load_data
     @lastGameId = ''
+    # list of all player stat totals from each game they appeared in the 
+    #   retrosheet logs
+    @playergames = {}
+    # list of all player cumulative stats, sorted by gameId
+    #   - for each gameId, each stat is that player's career total up to but
+    #     not including that game
+    @playerStatSums = {}
   end
 
-  def generate_measurements(startNum, analyzeLength)
+  def load_game_data
+    # loads all playergames into memory as a hash for faster access
+  end
+
+  def sum_to_game(playerId, gameId)
+    # sums all stats from playergames by player and game
+    # 
+  end
+
+  def generate_measurements(startNum, endNum)
     # all the gameIds are sorted in the playergames table, so startNum is 
     #   basically the index to start at
     # features: batting avg, avg(singles), avg(doubles), avg(triples),
@@ -39,15 +59,11 @@ class Measure
     #   portability to other SQL dbs if I ever need to, and also habit
     tableName = 'measurements'
     colInfo = [
-      {:name => 'gameId', :type => 'varchar(30)',
-        :notNull => 'true', :default => ''},
-      {:name => 'teamCode', :type => 'varchar(3)',
-        :notNull => 'true', :default => ''},
+      {:name => 'gameId', :type => 'varchar(30)'},
+      {:name => 'teamCode', :type => 'varchar(3)'},
       {:name => 'isWinner', :type => 'int',
         :notNull => 'true', :default => '0'},
       {:name => 'battingaverage', :type => 'real',
-        :notNull => 'true', :default => '0'},
-      {:name => 'strikes', :type => 'int',
         :notNull => 'true', :default => '0'},
       {:name => 'singles', :type => 'int', 
         :notNull => 'true', :default => '0'},
@@ -60,15 +76,58 @@ class Measure
       {:name => 'strikeouts', :type => 'int',
         :notNull => 'true', :default => '0'},
     ]
+    @db.drop_table(tableName)
     @db.create_new_table(tableName, colInfo)
 
-    @gml.get_gameId_list[startNum..analyzeLength].each_with_index do |gameId, idx|
-      @lastGameId = gameId
+    @gml.get_gameId_list[startNum..endNum].each_with_index do |gameId, idx|
       begin
-        puts "Analyzing #{gameId}, #{analyzeLength-startNum-idx} remaining"
+        puts "Analyzing #{gameId}, #{endNum-startNum-idx} remaining"
         teams = @gml.get_gamelog(gameId)[:teams]
+        winner = @gml.get_gamelog(gameId)[:winner]
         year = gameId[3..6]
-  
+
+        teams.each do |teamId|
+          roster = @rst.get_single_roster(teamId, year)
+          stats = @db.get_avg_batch(roster, gameId)
+          
+          # didn't set default values on playergames table when ingesting data
+          stats.map! {|row| row.map {|x| if x == nil then 0 else x end}}
+
+          # remove players with low impact on team's batting stats
+          # filter threshold must be somewhere above 0, just some players have 
+          #   a handful of atbats without being regular batters
+          stats = stats.filter {|row| row[0] > 50}
+
+          # convert atbats and hits to batting average
+          stats = stats.map {|row| 
+            row[1..].map.with_index {|x, i| x.to_f/row[0]}
+          }
+
+          # average together each column to get team-wide stats
+          avgStats = stats.transpose.map {|x| x.reduce(:+)}.map {|y| y/stats[0].length}
+          row = [gameId, teamId, (teamId == winner ? 1 : 0)] + avgStats
+
+          @db.add_measurement(row, tableName)
+          @lastGameId = gameId
+        end
+
+      rescue => error
+        # try to save last game finished if there's a problem
+        puts "Error, attempting to save"
+        puts error
+        @db.save_to_disk
+        File.write('./lib/lastGameAnalyzed', @lastGameId)
+        exit
+      end
+
+    end
+    # otherwise save between files
+    @db.save_to_disk
+    File.write('./lib/lastGameAnalyzed', @lastGameId)
+
+  end
+
+=begin
         # team and roster setup
         #t = Time.now
         winTeam = @gml.get_gamelog(gameId)[:winner]
@@ -102,14 +161,13 @@ class Measure
         #  check DBInterface#add_measurement for signature
         @db.add_measurement((Matrix[winAccum] - Matrix[loseAccum]).to_a[0], tableName)
       rescue
-  
         @db.save_to_disk
         File.write('./lib/lastGameAnalyzed', @lastGameId)
       end
-
     end
     @db.save_to_disk
     File.write('./lib/lastGameAnalyzed', @lastGameId)
-
   end
+=end
+
 end
