@@ -107,10 +107,8 @@ class Ingest
     # then dump processed data into table
     # then save data
     begin # dumping into DB
-      @rawData.each do |row|
-        puts "About to dump row"
-        puts row.to_s
-        STDIN.gets
+      @rawData.each_with_index do |row, idx|
+        puts "Inserting row #{idx+1} of #{@rawData.length}"
         @db.insert(@tableName, @headers, row)
       end
       save_data

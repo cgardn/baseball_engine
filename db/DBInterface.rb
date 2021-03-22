@@ -75,14 +75,12 @@ class DBInterface
   def insert(tableName, headers, row)
     execString = "insert into #{tableName}"
     headerString = "(#{headers.join(', ')})"
-    vString = "VALUES (#{row.join(", ")})"
-    puts "#{execString} #{headerString} #{vString}"
-    STDIN.gets
+    #vString = "VALUES (#{row.map{|x| "'#{x}'"}.join(", ")})"
+    vString = "VALUES(#{('?'*headers.length).split('').join(', ')})"
 
     st = @db.prepare("#{execString} #{headerString} #{vString}")
-    puts "Prepared statement"
-    puts st.to_s
-    STDIN.gets
+    st.bind_params(row)
+    st.execute
   end
 
   def add_measurement(row, tableName)
