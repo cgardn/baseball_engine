@@ -27,40 +27,35 @@ class Measure
     @lastGameId = ''
   end
 
-  def generate_measurements(startNum, endNum)
+  def setup_table(tableName = '')
+    # set up table
+    # need the chosen features for both teams along with team code and who won
+    # note that the varchar length params are ignored by sqlite, included 
+    #   here for portability to other SQL dbs
+    tableName ||= 'measurements'
+    schemaString = 
+      "gameId varchar(30), "\
+      "teamCode varchar(3), "\
+      "isWinner int NOT NULL DEFAULT 0, "\
+      "battingaverage real NOT NULL DEFAULT 0, "\
+      "singles int NOT NULL DEFAULT 0, "\
+      "doubles int NOT NULL DEFAULT 0, "\
+      "triples int NOT NULL DEFAULT 0, "\
+      "homeruns int NOT NULL DEFAULT 0, "\
+      "strikeouts int NOT NULL DEFAULT 0"
+
+    @db.drop_table(tableName)
+    @db.create_new_table(tableName, schemaString)
+  end
+
+  def generate_measurements(startNum, endNum, tableName = '')
+    setup_table((tableName ? tableName : "measurements"))
     # all the gameIds are sorted in the playergames table, so startNum is 
     #   basically the index to start at
     # features: batting avg, avg(singles), avg(doubles), avg(triples),
     #           avg(homeruns), avg(strikeouts)
     #           - cumulative for each team's roster in that year, up to the
     #             game in question (exclusive)
-
-    # set up table
-    # need the chosen features for both teams along with team code and who won
-    # tables: measurements - gameId, teamCode, features, isWinner (0 or 1)
-    # note that the varchar length params are ignored by sqlite, included 
-    #   here for portability to other SQL dbs
-    tableName = 'measurements'
-    colInfo = [
-      {:name => 'gameId', :type => 'varchar(30)'},
-      {:name => 'teamCode', :type => 'varchar(3)'},
-      {:name => 'isWinner', :type => 'int',
-        :notNull => 'true', :default => '0'},
-      {:name => 'battingaverage', :type => 'real',
-        :notNull => 'true', :default => '0'},
-      {:name => 'singles', :type => 'int', 
-        :notNull => 'true', :default => '0'},
-      {:name => 'doubles', :type => 'int',
-        :notNull => 'true', :default => '0'},
-      {:name => 'triples', :type => 'int',
-        :notNull => 'true', :default => '0'},
-      {:name => 'homeruns', :type => 'int',
-        :notNull => 'true', :default => '0'},
-      {:name => 'strikeouts', :type => 'int',
-        :notNull => 'true', :default => '0'},
-    ]
-    @db.drop_table(tableName)
-    @db.create_new_table(tableName, colInfo)
 
     @gml.get_gameId_list[startNum..endNum].each_with_index do |gameId, idx|
       begin

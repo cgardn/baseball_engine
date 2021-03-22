@@ -13,6 +13,18 @@ class DBInterface
     create_table
   end
 
+  def drop(table)
+    @db.execute("drop table if exists #{table}")
+  end
+
+  def get_table_names
+    @db.execute("select name from sqlite_master where type='table'").reduce(:+)
+  end
+
+  def has_table?(tableName)
+    get_table_names.include? tableName
+  end
+
   def load_from_disk
     diskDB = SQLite3::Database.open "./db/db.sqlite3"
     b = SQLite3::Backup.new(@db, 'main', diskDB, 'main')
@@ -60,6 +72,19 @@ class DBInterface
     end
   end
 
+  def insert(tableName, headers, row)
+    execString = "insert into #{tableName}"
+    headerString = "(#{headers.join(', ')})"
+    vString = "VALUES (#{row.join(", ")})"
+    puts "#{execString} #{headerString} #{vString}"
+    STDIN.gets
+
+    st = @db.prepare("#{execString} #{headerString} #{vString}")
+    puts "Prepared statement"
+    puts st.to_s
+    STDIN.gets
+  end
+
   def add_measurement(row, tableName)
     # add a single measurement row into specified database
     @db.execute(
@@ -88,21 +113,11 @@ class DBInterface
     @db.execute("create table if not exists playergames (playerId varchar(30), gameId varchar(30), atbats int, hits int, strikes int, balls int, singles int, doubles int, triples int, homeruns int, walks int, strikeouts int);")
   end
 
-  def create_new_table(tableName, columnInfo)
+  def create_new_table(tableName, schemaString)
     # input: 
     #   String tableName
-    #   Hash columnInfo
-    #     :name - required, string name of column
-    #     :type - required, string SQL type of column (varchar (30), int, etc)
-    #     :notNull - optional, bool, true if null not allowed
-    #     :default - optional, variable type, default value for new entries
-    #                type depends on type of column
-    colString = columnInfo.map do |x| 
-      "#{x[:name]} #{x[:type]}#{x[:notNull] ? ' NOT NULL' : ''}#{x[:default] ? ' DEFAULT '+x[:default] : ''}"
-    end
-    colString = colString.join(', ')
-
-    @db.execute("create table if not exists #{tableName} (#{colString});")
+    #   String schemaString - just a long string for SQL table definition
+    @db.execute("create table if not exists #{tableName} (#{schemaString});")
   end
 
   def get_avg_batch(playerIdList, gameId='')

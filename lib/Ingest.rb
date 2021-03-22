@@ -9,6 +9,8 @@ require 'csv'
 #     for bunts/sac bunts/sac flys/etc)
 # TODO technical:
 # - replace my own parsing with chadwick tool
+# - put data in new/existing table
+# - table add/drop/rename options
 
 class Ingest
   def initialize
@@ -23,8 +25,10 @@ class Ingest
     end
   end
 
+  def setup_table
+  end
+
   def ingest_raw_data
-    #check_for_gamefiles
     check_for_lastFile
 
     newGame = SingleGame.new
@@ -34,8 +38,6 @@ class Ingest
       puts "Processing: #{fName}"
       # bit of a hang here to load the file, might be unavoidable
       f = CSV.read("./raw/#{fName}")
-      puts "stop here, seems ok"
-      STDIN.gets
     
       # games are separated by rows starting with 'id'
       t = f.each_with_index.select {|line, idx| line[0] == 'id'}.map(&:last) + [f.length-1]
