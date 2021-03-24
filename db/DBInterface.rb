@@ -74,8 +74,10 @@ class DBInterface
 
   def insert(tableName, headers, row)
     execString = "insert into #{tableName}"
-    headerString = "(#{headers.join(', ')})"
-    #vString = "VALUES (#{row.map{|x| "'#{x}'"}.join(", ")})"
+    #headerString = "(#{headers.join(', ')})"
+    # need to wrap columns in double quotes in case some of them start with
+    #   numbers (it's an SQL requirement)
+    headerString = "(#{headers.map {|h| "\"#{h}\""}.join(", ")})"
     vString = "VALUES(#{('?'*headers.length).split('').join(', ')})"
 
     st = @db.prepare("#{execString} #{headerString} #{vString}")
