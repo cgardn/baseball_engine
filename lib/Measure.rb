@@ -48,6 +48,13 @@ class Measure
     @db.create_new_table(tableName, schemaString)
   end
 
+  def average_over_previous_games(col, num, gameId)
+    # get the average value of a column over num previous games
+    #   up to, but not including, gameId
+    # this is mainly an sql command, how much should be pushed down to
+    #   DBInterface?
+  end
+
   def generate_measurements(startNum, endNum, tableName = '')
     setup_table((tableName ? tableName : "measurements"))
     # all the gameIds are sorted in the playergames table, so startNum is 

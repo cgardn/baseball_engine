@@ -28,8 +28,8 @@ class Ingest
 
     # TODO replace this with YAML config
     #      also needs types assigned, currently doing this manually
-    @fieldsHome = "-f 0,8,35 -x 35-48"
-    @fieldsVis = "-f 0,7,34 -x 10-23"
+    @fieldsHome = "-f 0,8,35,37,39 -x 35-48"
+    @fieldsVis = "-f 0,7,34,36,38 -x 10-23"
     @headers = []
 
     @db = DBInterface.new
@@ -113,8 +113,11 @@ class Ingest
     mainTimecheck = Time.now
     @fileList.each do |fName|
       #this single year is only for testing
-      if @testMode && fName[0..3].to_i < 1989 || fName[0..3].to_i > 1989
-        next
+    
+      if @testMode
+        if fName[0..3].to_i < 1989 || fName[0..3].to_i > 1989
+          next
+        end
       end
       if !@testMode && fName[0..3].to_i < @startYear
         next
@@ -164,7 +167,7 @@ class Ingest
       end
     end
     begin
-      save_data
+      @db.save_to_disk
     rescue => error
       puts "Error saving data"
       @logger.log(error)
@@ -174,10 +177,6 @@ class Ingest
       puts "Logged #{@logger.errorCount} errors"
     end
     puts "Completed in #{Time.now - mainTimecheck}"
-  end
-    
-  def save_data
-    @db.save_to_disk
   end
 
   def set_home_and_winner_fields(gameFileData, isHome)
@@ -215,19 +214,4 @@ class Ingest
     end
   end
 
-  def check_for_lastFile
-    if @fileList.find_index(@lastFile) == @fileList.length-1
-      puts "Looks like you're already done, lastFile is at the end of the "\
-           "fileList.\nIf you want to go again, reset the DB and delete "\
-           "./db/lastFile"
-      exit
-    elsif @lastFile
-      @fileList = @fileList.slice(@fileList.find_index(@lastFile)+1..)
-      puts "Picking up where I left off: #{@lastFile}"
-      puts "Filelist starting with: "
-      puts @fileList[0..5].to_s
-      puts "Press any key to begin..."
-      STDIN.gets
-    end
-  end
 end
