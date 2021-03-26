@@ -8,10 +8,7 @@ class DBInterface
     create_table
   end
 
-  def setup
-    load_from_disk
-    create_table
-  end
+  # --- Table management and utility --- #
 
   def drop(table)
     @db.execute("drop table if exists #{table}")
@@ -19,6 +16,12 @@ class DBInterface
 
   def get_table_names
     @db.execute("select name from sqlite_master where type='table'").reduce(:+)
+  end
+
+  def get_column_names(tablename)
+    # returns array of string names of table columns, in the order they appear
+    #   in the DB
+    return @db.execute("PRAGMA table_info(#{tablename})").transpose[1]
   end
 
   def has_table?(tableName)
@@ -49,11 +52,54 @@ class DBInterface
     puts "done."
   end
 
-  def get_column_names(tablename)
-    # returns array of string names of table columns, in the order they appear
-    #   in the DB
-    return @db.execute("PRAGMA table_info(#{tablename})").transpose[1]
+  def generate_schema_string(cols)
+    # generates an SQL schema definition string for CREATE TABLE command. 
+    #   Double-quotes all column names in case they begin with numbers
+    #   input: array of string names of columns.
+    out = "#{cols[0]} varchar(30), #{cols[1]} varchar(3), "
+    out += cols[2..].map {|s| "\"#{s}\" int NOT NULL DEFAULT 0"}.join(', ')
+    return out
   end
+
+  # --- Data methods --- #
+  
+  def average_over_previous(col, teamCode, num, tableName, gameId)
+    # get the average value of a column over num previous games for given team
+    #   up to, but not including, gameId
+    lastNGamesQry = "select \"#{col}\" from #{tableName} "\
+                    "where TEAM_ID='#{teamCode}' and "\
+                    "substr(GAME_ID, 4) < '#{gameId[3..]}' "\
+                    "ORDER BY substr(GAME_ID, 4) DESC limit #{num}"
+    qry = "select avg(\"#{col}\") from (#{lastNGamesQry})"
+    return @db.execute(qry.to_s)[0][0];
+  end
+
+  def average_ratio_over_previous(col1, col2, teamCode, num, tableName, gameId)
+    # get the value of col1/col2, averaged over num previous games, up to but
+    #  not including gameId
+    lastNGamesQry = "select \"#{col1}\", \"#{col2}\" from #{tableName} "\
+                    "where TEAM_ID='#{teamCode}' and "\
+                    "substr(GAME_ID, 4) < '#{gameId[3..]}' "\
+                    "ORDER BY substr(GAME_ID, 4) DESC limit #{num}"
+    qry = "select avg(cast(\"#{col1}\" as real) / "\
+          "cast(\"#{col2}\" as real)) from (#{lastNGamesQry})"
+    return @db.execute(qry)
+  end
+
+  def get_gamerecords(tableName, gameId)
+    # returns 2 rows, representing game stat summaries for both teams in a
+    #   given game
+    qry = "select * from #{tableName} where GAME_ID='#{gameId}'"
+    return @db.execute(qry)
+  end
+
+  def get_winner(tableName, gameId)
+    # returns winning TEAM_ID for given game
+    qry = "select TEAM_ID from #{tableName} where GAME_ID='#{gameId}' and "\
+          "WIN=1"
+    return @db.execute(qry)[0][0]
+  end
+
 
   def add_game(gameData)
     # insert one game's worth of records (many players)
@@ -113,10 +159,11 @@ class DBInterface
     @db.execute("create table if not exists playergames (playerId varchar(30), gameId varchar(30), atbats int, hits int, strikes int, balls int, singles int, doubles int, triples int, homeruns int, walks int, strikeouts int);")
   end
 
-  def create_new_table(tableName, schemaString)
+  def create_new_table(tableName, headerList)
     # input: 
     #   String tableName
-    #   String schemaString - just a long string for SQL table definition
+    #   Array headerList - array of string names of columns
+    schemaString = generate_schema_string(headerList)
     @db.execute("create table if not exists #{tableName} (#{schemaString});")
   end
 

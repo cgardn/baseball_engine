@@ -15,16 +15,22 @@
 require './lib/Rosters'
 require './lib/Gamelogs'
 require './db/DBInterface'
+require 'yaml'
 
-class Measure
+class MeasureGame
 
-  def initialize
+  def initialize(table)
     @db = DBInterface.new
     @rst= Rosters.new
     @rst.load_data
     @gml = Gamelogs.new
     @gml.load_data
     @lastGameId = ''
+    @table = table
+  end
+
+  def table=(newTable)
+    @table = newTable
   end
 
   def setup_table(tableName = '')
@@ -48,16 +54,58 @@ class Measure
     @db.create_new_table(tableName, schemaString)
   end
 
-  def average_over_previous(col, num, gameId)
-    # get the average value of a column over num previous games
-    #   up to, but not including, gameId
-    # this is mainly an sql command, how much should be pushed down to
-    #   DBInterface?
+  def generate_model(startRow, num)
+    # starting at specified row of ingested data, build a model with num 
+    #   records
+    # generated model is saved at the end
   end
 
-  def average_ratio_over_previous(col1, col2, num, gameId)
-    # get the value of col1/col2, averaged over num previous games, up to but
-    #  not including gameId
+  def save_model
+    if !Dir.exists? "./models"
+      Dir.mkdir("./models")
+    end
+
+    fName = "#{@table}.model"
+    i = 1
+    while File.exists(fName)
+      fName = "#{@table}_#{i}.model"
+      i += 1
+    end
+    File.open("./models/#{fName}", 'w') do |f|
+      f << @weights.to_yaml
+    end
+  end
+
+  def get_saved_models(table)
+    modelList = `ls ./models`.split.filter {|x| x.match(/#{table}/)}
+    return modelList
+  end
+
+  def load_model(name)
+    return YAML.load(File.read("./models/#{name}.model"))
+  end
+
+  def get_winner(r)
+    # takes 2-row gamerecord set, returns string team code of winning team
+    return r.sort{|a,b| a.last <=> b.last}[1][1]
+  end
+
+  def compare_values(col, num, gameId)
+    # TODO only for testing? remove me later?
+    # looks at avg value of col over previous num games before gameId
+    records = db.get_gamerecords(@table, gameId).transpose[1]
+    teams = records.transpose[1]
+    winner = get_winner(records)
+    loser = teams.filter{|x| x != winner}[0]
+    winVals =  @db.average_over_previous(col, winner, num, @table, gameId)
+    loseVals =  @db.average_over_previous(col, loser, num, @table, gameId)
+    return [winVals, loseVals]
+  end
+
+  def get_predictive_value(col, num, avgNum)
+    # compares average values of col over avgNum games before a game, checks
+    #   separation between winning and losing team over num games
+    # output: mean and stddev of winning and losing team for given column
   end
 
   def generate_measurements(startNum, endNum, tableName = '')

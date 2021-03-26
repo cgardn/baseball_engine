@@ -48,12 +48,6 @@ class Ingest
     end
   end
 
-  def generate_schema_string(cols)
-    out = "#{cols[0]} varchar(30), #{cols[1]} varchar(3), "
-    out += cols[2..].map {|s| "\"#{s}\" int NOT NULL DEFAULT 0"}.join(', ')
-    return out
-  end
-
   def get_field_names(fieldString)
     # FIXME is there a cleaner way to do this?
     # we use a random event file here, since we're just collecting column
@@ -152,8 +146,7 @@ class Ingest
 
     # drop if exists, recreate table
     @db.drop(@tableName)
-    ss = generate_schema_string(@headers)
-    @db.create_new_table(@tableName, ss)
+    @db.create_new_table(@tableName, @headers)
 
     # dumping into DB
     @rawData.each_with_index do |row, idx|
