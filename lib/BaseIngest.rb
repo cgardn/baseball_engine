@@ -29,13 +29,9 @@ require './lib/Logger'
 
 class BaseIngest
   def initialize(dbRef, tableName)
-    unless check_for_gamefiles then exit end
-    unless has_subclass_methods then exit end
     @logger = Logger.new
     @db = dbRef
     @tableName = tableName
-
-    get_year_range
   end
 
   # log
@@ -60,28 +56,18 @@ class BaseIngest
     return false
   end
 
-  def method_defined?(sym)
-    if !self.method_defined?(sym)
-      puts "No ##{sym.to_s} defined on subclass #{self.class}. "\
-           "See docs for details."
-    end
-  end
-
   def ingest_raw_data
-    # first check if get_headers and process_single_event_file are defined
-    self.method_defined?(:get_headers)
-    self.method_defined?(:process_single_event_file)
-=begin
-    if !self.method_defined?(:process_single_event_file)
-      puts "No #get_headers defined on subclass #{self.class}. See docs for "\
-           "details"
-    end
-=end
     # give user a chance to avoid overwriting an existing table
+    unless check_for_gamefiles then exit end
+    unless has_subclass_methods then exit end
+    get_year_range
     confirm_overwrite_table
     get_headers
-    check_headers
-
+    if !check_headers
+      puts "No headers defined. Make sure @headers is set with column names in  "\
+           "order to continue."
+      exit
+    end
   end
 
 
@@ -95,13 +81,7 @@ class BaseIngest
   end
 
   def check_headers
-    if !@headers
-      puts "No headers defined. Make sure @headers is set with column names in  "\
-           "order to continue"
-      exit
-    else
-      return true
-    end
+    if !@headers then return false else return true end
   end
 
   # recreate_table
