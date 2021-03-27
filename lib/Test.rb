@@ -27,7 +27,7 @@ class Test
   end
 
   def full_test(startNum, testLength)
-    # TODO replace this with LDA
+    # TODO replace this with random forest or something
     # - everything in full_test is based on old (and incorrect) ideas, so it
     #   doesn't work right
     puts "Features: #{@features.to_s}\nMean: #{@mean}\nSTDDEV: #{@stddev}"

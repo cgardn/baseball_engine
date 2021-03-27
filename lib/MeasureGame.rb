@@ -19,15 +19,15 @@ require 'yaml'
 
 class MeasureGame
 
-  def initialize(table)
-    @db = DBInterface.new
+  def initialize(tableName, dbRef)
+    #@db = DBInterface.new
+    @db = dbRef
     @rst= Rosters.new
     @rst.load_data
     @gml = Gamelogs.new
     @gml.load_data
     @lastGameId = ''
-    @table = table
-    return nil
+    @table = tableName
   end
 
   def table=(newTable)

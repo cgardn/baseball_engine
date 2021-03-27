@@ -1,5 +1,6 @@
+require './lib/BaseIngest'
 require './lib/SingleGame'
-require './db/DBInterface'
+#require './db/DBInterface'
 require './lib/Gamelogs'
 require './lib/Logger'
 require 'csv'
@@ -15,40 +16,29 @@ require 'csv'
 # - put data in new/existing table
 # - table add/drop/rename options
 
-class Ingest
-  def initialize(tableName)
+class IngestChadwick < BaseIngest
+
+  def initialize(dbRef, tableName)
+    super
     @testMode = false
-    @startYear = 1989
 
     @newGame = false
     @newFile = true
     @rawData = []
-    @tableName = tableName
-    @logger = Logger.new
 
     # TODO replace this with YAML config
     #      also needs types assigned, currently doing this manually
     @fieldsHome = "-f 0,8,35,37,39 -x 35-48"
     @fieldsVis = "-f 0,7,34,36,38 -x 10-23"
     @headers = []
-
-    @db = DBInterface.new
     
     # we use the Gamelogs class for winner/loser of a given gameId
     @gml = Gamelogs.new
     @gml.load_data
-
-    check_for_gamefiles
-
-    # FIXME drop this once chadwick fully operational? fast enough to not
-    #       bother?
-    @lastFile= (File.exists? "./db/lastFile") ? File.read('./db/lastFile') : ''
-    if @lastFile
-      @fileList.slice!(@fileList.find_index(@lastFile)+1..)
-    end
   end
 
-  def get_field_names(fieldString)
+=begin
+  def get_headers(fieldString)
     # FIXME is there a cleaner way to do this?
     # we use a random event file here, since we're just collecting column
     #   headers
@@ -65,9 +55,25 @@ class Ingest
         return output
       end
     rescue => error
-      @logger.log(error)
-      @logger.log(error.backtrace)
+      log(error, error.backtrace)
       exit
+    end
+  end
+=end
+
+  def process_single_event_file(file)
+    begin
+      Dir.chdir("./raw") do
+        output = `cwgame -y #{fileName[0..3]} #{fieldString} #{fileName}`
+        output = CSV.parse(output)
+        # FIXME hardcoded assumption that the first two values are strings, and
+        #      the rest are ints - requires YAML config with type hints
+        output = output.map! {|row| row[0..1] + row[2..].map!(&:to_i)}
+        return output
+      end
+    rescue => error
+      log(error, error.backtrace)
+      return nil
     end
   end
 
@@ -82,27 +88,22 @@ class Ingest
         return output
       end
     rescue => error
-      @logger.log(error)
-      @logger.log(error.backtrace)
+      log(error, error.backtrace)
       return nil
     end
   end
 
   def ingest_raw_data
+    super()
     # main processing of game event files
-    # TODO include tagging entries with win or loss
-    # TODO take each game event and separate home and vis team into their own
-    #      rows
-    
-    # give user a chance to avoid overwriting an existing table
-    if @db.has_table? @tableName
-      puts "Table #{@tableName} exists. Bail out now, or continue to overwrite"
-      STDIN.gets
-    end
 
     # fixing header prefixes, adding home team and win true/false column
     @headers = get_field_names(@fieldsHome)
     @headers.push("HOME", "WIN")
+
+    # check for headers before we start processing, so we don't get all the way to
+    #   the end and have to exit without saving anything
+    check_headers
 
     mainTimecheck = Time.now
     @fileList.each do |fName|
@@ -145,33 +146,21 @@ class Ingest
     end
 
     # drop if exists, recreate table
-    @db.drop(@tableName)
-    @db.create_new_table(@tableName, @headers)
+    recreate_table
 
     # dumping into DB
-    @rawData.each_with_index do |row, idx|
-      begin
-        puts "Inserting row #{idx+1} of #{@rawData.length}"
-        @db.insert(@tableName, @headers, row)
-      rescue => error # dump failed, just skip this row 
-        @logger.log(error)
-        @logger.log(error.backtrace)
-        next
-      end
-    end
-    begin
-      @db.save_to_disk
-    rescue => error
-      puts "Error saving data"
-      @logger.log(error)
-      @logger.log(error.backtrace)
-    end
-    if @logger.didLogErrors
-      puts "Logged #{@logger.errorCount} errors"
-    end
+    errCount = insert_data(@rawData)
+    puts "Logged #{errCount} errors."
+
     puts "Completed in #{Time.now - mainTimecheck}"
   end
 
+  # @param [Array] gameFileData 2D array of ingested data for home or away team
+  # in a particular retrosheet event file
+  # @param [Boolean] isHome Is this array of home or visitor data?
+  # @return gameFileData with last two fields filled in: 'HOME' and 'WIN', 
+  # indicating whether the given row was for a home team and winning team with 0 
+  # or 1
   def set_home_and_winner_fields(gameFileData, isHome)
     gameFileData.each_with_index do |row, idx|
       begin
@@ -188,23 +177,10 @@ class Ingest
           row.push(0)
         end
       rescue => error
-        @logger.log(error)
-        @logger.log(row.to_s)
+        log(error, row.to_s)
       end
     end
     return gameFileData.filter {|x| x != nil}
-  end
-
-  def check_for_gamefiles
-    if !@fileList
-      @fileList = Dir["./raw/*.EV*"].map {|f| f[6..]}.sort
-    end
-    puts "Found #{@fileList.length} event files in './raw'"
-    if !@fileList
-      puts "Couldn't find retrosheet game files. Please visit "\
-        "https://www.retrosheet.org to download game event files."
-      exit
-    end
   end
 
 end
