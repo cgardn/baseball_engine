@@ -20,6 +20,12 @@ class Test
     @db = DBInterface.new
   end
 
+  def check_results
+    # compares 2-column data of [gameId, teamCode] where teamCode is predicted
+    #   winner
+    # checks gamelogs to see if it's right
+  end
+
   def full_test(startNum, testLength)
     # TODO replace this with LDA
     # - everything in full_test is based on old (and incorrect) ideas, so it

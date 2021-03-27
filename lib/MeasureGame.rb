@@ -27,6 +27,7 @@ class MeasureGame
     @gml.load_data
     @lastGameId = ''
     @table = table
+    return nil
   end
 
   def table=(newTable)
@@ -93,7 +94,7 @@ class MeasureGame
   def compare_values(col, num, gameId)
     # TODO only for testing? remove me later?
     # looks at avg value of col over previous num games before gameId
-    records = db.get_gamerecords(@table, gameId).transpose[1]
+    records = @db.get_gamerecords(@table, gameId)
     teams = records.transpose[1]
     winner = get_winner(records)
     loser = teams.filter{|x| x != winner}[0]
@@ -102,10 +103,47 @@ class MeasureGame
     return [winVals, loseVals]
   end
 
-  def get_predictive_value(col, num, avgNum)
+  def get_predictive_value(num, avgNum)
     # compares average values of col over avgNum games before a game, checks
     #   separation between winning and losing team over num games
     # output: mean and stddev of winning and losing team for given column
+    measureList = (1..@gml.get_gameId_list.length-1).to_a.shuffle
+    testList = []
+    (measureList.length*0.2).to_i.times do |idx|
+      testList << measureList.pop 
+    end
+
+    featureList = @db.get_column_names("measurements2")[2..]
+
+    winAvg = {}
+    loseAvg = {}
+
+    num.times.with_index do |idx, idy|
+      gameId = @gml.get_gameId_list[measureList[idx]]
+      puts "measuring #{idy} of 1000"
+      if idy != 0 && (idy % 100 == 0)
+        puts "#{col} winner avg: #{(winAvg.reduce(:+))/winAvg.length}"
+        puts "#{col} lose avg: #{(loseAvg.reduce(:+))/loseAvg.length}"
+      end
+      featureList.each do |feature|
+        out = compare_values(feature, avgNum, gameId)
+        winAvg[feature] ||= []
+        loseAvg[feature] ||= []
+        winAvg[feature].push(out[0])
+        loseAvg[feature].push(out[1])
+      end
+    end
+    begin
+      featureList.each do |feature|
+        puts "#{feature} winner avg: #{(winAvg[feature].reduce(:+))/winAvg[feature].length}"
+        puts "#{feature} lose avg: #{(loseAvg[feature].reduce(:+))/loseAvg[feature].length}"
+      end
+    rescue => error
+      puts error
+      puts error.backtrace
+      puts winAvg
+      puts lostAvg
+    end
   end
 
   def generate_measurements(startNum, endNum, tableName = '')

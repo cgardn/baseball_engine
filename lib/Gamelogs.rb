@@ -14,7 +14,7 @@ class Gamelogs
   def load_data
     if File.exists? './staticData/gamelogdump'
       load_from_marshal
-      return
+      return nil
     end
     # iterate over all gamelog files and extract
     # fields: 0-date, 1-gamenum, 3-vis team code, 6-home team code
