@@ -14,14 +14,23 @@
 
 require './lib/Rosters'
 require './lib/Gamelogs'
-require './db/DBInterface'
+require './lib/DBInterface'
 require 'yaml'
 
+# creates the actual values that are trained/tested on. May not be necessary
+#   depending on your ingest implementation.
+# For example: Each row in the ingested table represents one team's summary 
+#   stats, but you want to train on the average of the last 5 games for each
+#   stat. You can do this in the ingest method, or build a separate table here
+#   if you want to preserve the raw ingested data in its own table, for doing
+#   something different next time without having to re-scan all the original
+#   text files.
+# FIXME NB: this is still an old version, refactoring WIP.
 class MeasureGame
 
   def initialize(tableName, dbRef)
-    #@db = DBInterface.new
     @db = dbRef
+
     @rst= Rosters.new
     @rst.load_data
     @gml = Gamelogs.new

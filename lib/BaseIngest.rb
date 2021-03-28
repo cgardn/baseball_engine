@@ -44,32 +44,71 @@ class BaseIngest
   end
 
   def has_subclass_methods
+    out = []
     if !self.respond_to?(:get_headers)
-      puts "No #get_headers defined on subclass #{self.class}. "\
-           "See docs for details."
-    elsif !self.respond_to?(:process_single_event_file)
-      puts "No #get_headers defined on subclass #{self.class}. "\
-           "See docs for details."
-    else
-      return true
+      out.push("get_headers")
     end
-    return false
+    if !self.respond_to?(:process_single_event_file)
+      out.push("process_single_event_file")
+    end
+    return out
   end
 
   def ingest_raw_data
     # give user a chance to avoid overwriting an existing table
     unless check_for_gamefiles then exit end
-    unless has_subclass_methods then exit end
+
+    if has_subclass_methods.any?
+      has_subclass_methods.each do |n|
+        puts "##{n} not defined on subclass #{self.class}. "\
+             "See BaseIngest docs for details."
+      end
+      exit
+    end
+
     get_year_range
     confirm_overwrite_table
-    get_headers
+
+    @headers = get_headers
     if !check_headers
       puts "No headers defined. Make sure @headers is set with column names in  "\
            "order to continue."
       exit
     end
-  end
 
+    # feed filenames into process_single_event_file, defined on subclass
+    # Leave it up to the subclass to decide how to extract rows from the file
+    mainTimecheck = Time.now
+    @fileList.each do |fName|
+      #this single year is only for testing
+      if @testMode
+        if fName[0..3].to_i < 1989 || fName[0..3].to_i > 1989
+          next
+        end
+      end
+      if !@testMode && fName[0..3].to_i < @startYear
+        next
+      end
+      if !@testMode && fName[0..3].to_i > @endYear
+        # next instead of break in case the list isn't sorted chronologically
+        #   skipping files is fast enough, there's only ~1k of them
+        next
+      end
+
+      # defined on subclass
+      # must return 2D rows of data
+      process_single_event_file(fName) {|rows| @rawData.concat(rows)}
+    end
+
+    # drop if exists, recreate table
+    recreate_table
+
+    # dumping into DB
+    errCount = insert_data(@rawData)
+    puts "Logged #{errCount} errors."
+
+    puts "Completed in #{Time.now - mainTimecheck}"
+  end
 
   def confirm_overwrite_table
     # just gives the user a chance to avoid overwriting the named table, if it
@@ -81,7 +120,15 @@ class BaseIngest
   end
 
   def check_headers
-    if !@headers then return false else return true end
+    begin
+      if @headers.empty?
+        return false
+      end
+    rescue NoMethodError
+      # if @headers is nil or some other thing that doesn't respond to #empty?
+      return false
+    end
+    return true
   end
 
   # recreate_table
@@ -96,6 +143,7 @@ class BaseIngest
       log("ERROR: no headers defined")
       exit
     end
+
     @db.drop(@tableName)
     @db.create_new_table(@tableName, @headers)
     return nil

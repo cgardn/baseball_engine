@@ -3,7 +3,7 @@
 #   which features are being used isn't relevant to the type of model - that
 #   choice happens entirely before, in the Measure module
 
-require './db/DBInterface'
+require './lib/DBInterface'
 require './lib/Rosters'
 require './lib/Gamelogs'
 require 'matrix'

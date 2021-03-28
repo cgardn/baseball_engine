@@ -1,6 +1,5 @@
 require './lib/BaseIngest'
 require './lib/SingleGame'
-#require './db/DBInterface'
 require './lib/Gamelogs'
 require './lib/Logger'
 require 'csv'
@@ -20,31 +19,25 @@ class IngestChadwick < BaseIngest
 
   def initialize(dbRef, tableName)
     super
-    @testMode = false
-
-    @newGame = false
-    @newFile = true
-    @rawData = []
 
     # TODO replace this with YAML config
     #      also needs types assigned, currently doing this manually
     @fieldsHome = "-f 0,8,35,37,39 -x 35-48"
     @fieldsVis = "-f 0,7,34,36,38 -x 10-23"
-    @headers = []
     
-    # we use the Gamelogs class for winner/loser of a given gameId
+    # we use the Gamelogs class for labelling records with win/loss 
     @gml = Gamelogs.new
     @gml.load_data
   end
 
-=begin
-  def get_headers(fieldString)
+  # Get column names from data files, put in @headers
+  def get_headers
     # FIXME is there a cleaner way to do this?
     # we use a random event file here, since we're just collecting column
     #   headers
     begin
       Dir.chdir("./raw") do
-        output = `cwgame -y 1989 -n #{fieldString} 1989ATL.EVN`
+        output = `cwgame -y 1989 -n #{@fieldsHome} 1989ATL.EVN`
         output = CSV.parse(output)[0]
 
         # remove home/away prefix from headers, home/vis is stored as separate
@@ -52,107 +45,58 @@ class IngestChadwick < BaseIngest
         t = ['HOME', 'AWAY']
         output.map! {|h| t.include?(h[0..3]) ? h[5..] : h}
 
+        output.push("HOME")
+        output.push("WIN")
+
         return output
       end
     rescue => error
+      puts error
       log(error, error.backtrace)
       exit
     end
   end
-=end
 
-  def process_single_event_file(file)
+  def ingest_event_file(fileName, fieldString)
     begin
       Dir.chdir("./raw") do
         output = `cwgame -y #{fileName[0..3]} #{fieldString} #{fileName}`
         output = CSV.parse(output)
         # FIXME hardcoded assumption that the first two values are strings, and
-        #      the rest are ints - requires YAML config with type hints
+        #       the rest are ints - making this more general requires YAML 
+        #       config with type hints or something similar
         output = output.map! {|row| row[0..1] + row[2..].map!(&:to_i)}
         return output
       end
     rescue => error
+      puts error
       log(error, error.backtrace)
       return nil
     end
   end
 
-  def ingest_single_event_file(fileName, fieldString)
-    begin
-      Dir.chdir("./raw") do
-        output = `cwgame -y #{fileName[0..3]} #{fieldString} #{fileName}`
-        output = CSV.parse(output)
-        # FIXME hardcoded assumption that the first two values are strings, and
-        #      the rest are ints - requires YAML config with type hints
-        output = output.map! {|row| row[0..1] + row[2..].map!(&:to_i)}
-        return output
-      end
-    rescue => error
-      log(error, error.backtrace)
-      return nil
-    end
-  end
+  # Yield rows of data from file given by fName
+  # @param [String] fName Name of file to be processed
+  # returns nothing, yield rows of data instead
+  def process_single_event_file(fName)
+    homeData = ingest_event_file(fName, @fieldsHome)
+    visData = ingest_event_file(fName, @fieldsVis)
+    out = []
 
-  def ingest_raw_data
-    super()
-    # main processing of game event files
-
-    # fixing header prefixes, adding home team and win true/false column
-    @headers = get_field_names(@fieldsHome)
-    @headers.push("HOME", "WIN")
-
-    # check for headers before we start processing, so we don't get all the way to
-    #   the end and have to exit without saving anything
-    check_headers
-
-    mainTimecheck = Time.now
-    @fileList.each do |fName|
-      #this single year is only for testing
-    
-      if @testMode
-        if fName[0..3].to_i < 1989 || fName[0..3].to_i > 1989
-          next
-        end
-      end
-      if !@testMode && fName[0..3].to_i < @startYear
-        next
-      end
-
-      # TODO FIXME sqlite3 gem has a way to insert straight out of a Hash
-      #            look into this, the home/away and win/loss additions would
-      #            be clearer with named attributes
-
-      # get home/vis team data for this file (returns 2d array, each row is
-      #   a home or away team's game data as specified in the fieldStrings)
-      homeData = ingest_single_event_file(fName, @fieldsHome)
-      visData = ingest_single_event_file(fName, @fieldsVis)
-
-      unless !homeData
-        # set home team and winner fields
-        homeData = set_home_and_winner_fields(homeData, true)
-        @rawData = @rawData.concat(homeData)
-        puts "Finished #{fName} home"
-      else
-        puts "Skipped #{fName} Home data"
-      end
-
-      unless !visData
-        # set home team and winner fields
-        visData = set_home_and_winner_fields(visData, false)
-        @rawData = @rawData.concat(visData)
-      else
-        puts "Skipped #{fName} Visitor data"
-      end
+    unless !homeData
+      # set home team and winner fields
+      yield set_home_and_winner_fields(homeData, true)
+      puts "Finished #{fName} home"
+    else
+      puts "Skipped #{fName} Home data"
     end
 
-    # drop if exists, recreate table
-    recreate_table
-
-    # dumping into DB
-    errCount = insert_data(@rawData)
-    puts "Logged #{errCount} errors."
-
-    puts "Completed in #{Time.now - mainTimecheck}"
+    unless !visData
+      # set home team and winner fields
+      yield set_home_and_winner_fields(visData, false)
+    else
+      puts "Skipped #{fName} Visitor data"
+    end
   end
 
   # @param [Array] gameFileData 2D array of ingested data for home or away team
@@ -177,6 +121,7 @@ class IngestChadwick < BaseIngest
           row.push(0)
         end
       rescue => error
+        puts error
         log(error, row.to_s)
       end
     end

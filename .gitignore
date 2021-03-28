@@ -1,3 +1,4 @@
+logs/*
 raw/*
 zip_data/*
 db/db.db

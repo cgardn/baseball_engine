@@ -1,5 +1,5 @@
 require './lib/SingleGame'
-require './db/DBInterface'
+require './lib/DBInterface'
 require 'csv'
 
 # TODO methodological: 

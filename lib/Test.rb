@@ -1,6 +1,6 @@
 # class for testing generated model from analyze.rb
 
-require './db/DBInterface'
+require './lib/DBInterface'
 require './lib/Rosters'
 require './lib/Gamelogs'
 require 'matrix'

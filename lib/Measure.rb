@@ -14,7 +14,7 @@
 
 require './lib/Rosters'
 require './lib/Gamelogs'
-require './db/DBInterface'
+require './lib/DBInterface'
 
 class Measure
 

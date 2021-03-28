@@ -35,7 +35,7 @@ class BB
   end
 
   def measure(startNum, endNum, tableName)
-    measure = Measure.new(@db, tableName)
+    measure = MeasureGame.new(@db, tableName)
     measure.generate_measurements(startNum, endNum)
   end
 
@@ -52,6 +52,10 @@ class BB
   end
 end
 
+if ARGV[0] == 'test'
+  bb = BB.new
+  bb.ingest("test", [1989,1989])
+end
 
 =begin
 usageStr = "usage:
